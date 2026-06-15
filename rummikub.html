@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Rummikub / רמיקוב</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;900&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+:root {
+  --felt: #1a5c2a;
+  --felt-light: #22733a;
+  --felt-dark: #123d1c;
+  --tile-bg: #f5f0e0;
+  --tile-shadow: #c8b89a;
+  --red: #d62828;
+  --blue: #1d3f8e;
+  --orange: #e07b00;
+  --black: #111111;
+  --gold: #f0c040;
+  --ui-bg: rgba(0,0,0,0.82);
+  --ui-border: rgba(255,255,255,0.12);
+  --radius: 10px;
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body { background:var(--felt-dark); font-family:'Heebo',sans-serif; overflow:hidden; height:100vh; direction:rtl; user-select:none; }
+
+/* ═══ SCREENS ═══ */
+#screen-menu, #screen-game, #screen-end {
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+}
+#screen-game { display:none; flex-direction:column; }
+#screen-end { display:none; flex-direction:column; background:rgba(0,0,0,0.85); z-index:200; }
+
+/* ═══ MENU ═══ */
+#menu-box {
+  background:linear-gradient(160deg,#0d2e14,#1a5c2a);
+  border:2px solid rgba(255,255,255,0.15);
+  border-radius:20px; padding:36px 40px; min-width:340px; max-width:95vw;
+  box-shadow:0 20px 60px rgba(0,0,0,0.6);
+  text-align:center;
+}
+#menu-box h1 {
+  font-family:'Bebas Neue',sans-serif; font-size:52px; letter-spacing:4px;
+  background:linear-gradient(135deg,#f0c040,#ff9900); -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  margin-bottom:4px;
+}
+#menu-box .subtitle { font-size:14px; color:rgba(255,255,255,0.6); margin-bottom:28px; }
+
+.menu-section { margin-bottom:20px; text-align:right; }
+.menu-section label { font-size:13px; color:rgba(255,255,255,0.7); display:block; margin-bottom:8px; font-weight:700; letter-spacing:1px; }
+
+.btn-group { display:flex; gap:8px; flex-wrap:wrap; }
+.opt-btn {
+  flex:1; min-width:60px; padding:10px 8px; border:2px solid rgba(255,255,255,0.2);
+  background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.7);
+  border-radius:10px; cursor:pointer; font-size:14px; font-family:'Heebo',sans-serif;
+  transition:all .2s; font-weight:700;
+}
+.opt-btn:hover { background:rgba(255,255,255,0.15); border-color:rgba(255,255,255,0.4); }
+.opt-btn.active { background:var(--gold); color:#111; border-color:var(--gold); }
+
+#btn-start {
+  width:100%; padding:16px; margin-top:8px;
+  background:linear-gradient(135deg,#f0c040,#e08000);
+  color:#111; font-size:20px; font-weight:900; border:none; border-radius:12px;
+  cursor:pointer; font-family:'Heebo',sans-serif; letter-spacing:1px;
+  box-shadow:0 4px 20px rgba(240,192,64,0.4);
+  transition:all .2s;
+}
+#btn-start:hover { transform:translateY(-2px); box-shadow:0 6px 28px rgba(240,192,64,0.5); }
+
+/* ═══ GAME LAYOUT ═══ */
+#game-top { display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:rgba(0,0,0,0.5); flex-shrink:0; }
+#game-status { font-size:14px; color:rgba(255,255,255,0.8); }
+#timer-box { display:flex; align-items:center; gap:8px; }
+#timer { font-size:28px; font-weight:900; color:var(--gold); font-family:'Bebas Neue',sans-serif; min-width:50px; text-align:center; }
+#timer.urgent { color:#ff4444; animation:blink .5s infinite; }
+@keyframes blink { 0%,100%{opacity:1}50%{opacity:.4} }
+
+#game-body { flex:1; display:flex; flex-direction:column; overflow:hidden; position:relative; }
+
+/* ═══ OPPONENTS AREA ═══ */
+#opponents-area { display:flex; justify-content:center; gap:12px; padding:8px 12px; flex-shrink:0; }
+
+.player-panel {
+  background:rgba(0,0,0,0.5); border:2px solid rgba(255,255,255,0.1);
+  border-radius:12px; padding:8px 14px; min-width:110px; text-align:center;
+  transition:all .3s;
+}
+.player-panel.active-turn { border-color:var(--gold); box-shadow:0 0 16px rgba(240,192,64,0.4); }
+.player-avatar { font-size:32px; line-height:1; margin-bottom:4px; }
+.player-name { font-size:12px; color:rgba(255,255,255,0.8); font-weight:700; margin-bottom:2px; }
+.player-count { font-size:11px; color:rgba(255,255,255,0.5); }
+.player-count span { color:var(--gold); font-weight:700; font-size:14px; }
+
+/* ═══ BOARD ═══ */
+#board-wrap { flex:1; overflow:hidden; position:relative; padding:8px; }
+#board {
+  width:100%; height:100%; background:var(--felt);
+  border-radius:16px; border:3px solid rgba(0,0,0,0.3);
+  position:relative; overflow:auto;
+  box-shadow:inset 0 4px 20px rgba(0,0,0,0.4);
+  background-image:
+    radial-gradient(ellipse at 30% 40%, rgba(255,255,255,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse at 70% 60%, rgba(0,0,0,0.1) 0%, transparent 60%);
+}
+#board-inner {
+  min-width:100%; min-height:100%; padding:12px;
+  display:flex; flex-wrap:wrap; align-content:flex-start; gap:10px;
+}
+.board-set {
+  display:flex; gap:3px; padding:6px 8px;
+  background:rgba(0,0,0,0.25); border-radius:10px;
+  border:1px solid rgba(255,255,255,0.08);
+  cursor:pointer; transition:all .2s;
+  flex-wrap:nowrap; align-items:flex-end;
+}
+.board-set:hover { background:rgba(0,0,0,0.35); border-color:rgba(255,255,255,0.2); }
+.board-set.selected-set { border-color:var(--gold); background:rgba(240,192,64,0.12); }
+
+/* ═══ TILE ═══ */
+.tile {
+  width:44px; height:58px; border-radius:6px;
+  background:linear-gradient(160deg,#f8f3e2 0%,#ede5cc 60%,#d8cdb0 100%);
+  box-shadow:0 3px 0 var(--tile-shadow), 0 4px 8px rgba(0,0,0,0.35);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-size:20px; font-weight:900; font-family:'Bebas Neue',sans-serif;
+  cursor:pointer; transition:all .15s; position:relative; flex-shrink:0;
+  border:1px solid rgba(200,190,160,0.6);
+  letter-spacing:-1px;
+}
+.tile::before {
+  content:''; position:absolute; inset:2px; border-radius:4px;
+  background:linear-gradient(160deg,rgba(255,255,255,0.6),transparent);
+  pointer-events:none;
+}
+.tile.color-red { color:var(--red); }
+.tile.color-blue { color:var(--blue); }
+.tile.color-orange { color:var(--orange); }
+.tile.color-black { color:var(--black); }
+.tile.joker { background:linear-gradient(135deg,#2a1a6e,#6a0dad); color:#f0c040; font-size:22px; border-color:#8844ff; }
+.tile.joker::before { background:linear-gradient(160deg,rgba(255,255,255,0.2),transparent); }
+
+.tile:hover { transform:translateY(-4px); box-shadow:0 7px 0 var(--tile-shadow), 0 8px 14px rgba(0,0,0,0.4); }
+.tile.selected {
+  transform:translateY(-8px) scale(1.05);
+  box-shadow:0 10px 0 var(--gold), 0 12px 20px rgba(0,0,0,0.5);
+  border-color:var(--gold);
+  background:linear-gradient(160deg,#fffaee,#f5edcc);
+}
+.tile.in-hand { width:40px; height:54px; font-size:18px; }
+.tile.small { width:36px; height:48px; font-size:16px; }
+.tile.placeholder {
+  border:2px dashed rgba(255,255,255,0.3); background:rgba(255,255,255,0.05);
+  color:rgba(255,255,255,0.3); box-shadow:none; cursor:default; font-size:12px;
+}
+.tile.placeholder:hover { transform:none; }
+
+/* ═══ PLAYER HAND ═══ */
+#hand-area {
+  background:rgba(0,0,0,0.55); border-top:2px solid rgba(255,255,255,0.1);
+  padding:10px 12px; flex-shrink:0;
+}
+#hand-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+#hand-label { font-size:12px; color:rgba(255,255,255,0.6); font-weight:700; }
+#hand-tiles { display:flex; flex-wrap:wrap; gap:4px; min-height:58px; }
+
+/* ═══ ACTION BUTTONS ═══ */
+#action-bar {
+  display:flex; gap:8px; padding:8px 12px;
+  background:rgba(0,0,0,0.5); flex-shrink:0; flex-wrap:wrap;
+}
+.action-btn {
+  flex:1; min-width:80px; padding:12px 8px;
+  border:none; border-radius:10px; cursor:pointer;
+  font-size:14px; font-weight:700; font-family:'Heebo',sans-serif;
+  transition:all .2s; min-height:48px;
+}
+#btn-place { background:linear-gradient(135deg,#22aa44,#118833); color:white; }
+#btn-place:hover { background:linear-gradient(135deg,#28cc55,#22aa44); }
+#btn-place:disabled { background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.3); cursor:not-allowed; }
+#btn-draw { background:linear-gradient(135deg,#1d5fa8,#0d3a7a); color:white; }
+#btn-draw:hover { background:linear-gradient(135deg,#2470cc,#1d5fa8); }
+#btn-draw:disabled { background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.3); cursor:not-allowed; }
+#btn-sort { background:rgba(255,255,255,0.1); color:white; border:1px solid rgba(255,255,255,0.2); }
+#btn-undo { background:rgba(255,100,50,0.3); color:#ffaa88; border:1px solid rgba(255,100,50,0.3); }
+#btn-new-set { background:rgba(255,200,50,0.2); color:#f0c040; border:1px solid rgba(255,200,50,0.3); }
+
+/* ═══ MESSAGE ═══ */
+#msg-box {
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  background:rgba(0,0,0,0.9); border:2px solid var(--gold); border-radius:14px;
+  padding:16px 28px; font-size:16px; color:white; text-align:center;
+  z-index:50; display:none; max-width:280px;
+  box-shadow:0 0 30px rgba(240,192,64,0.3);
+}
+
+/* ═══ END SCREEN ═══ */
+#end-box {
+  background:linear-gradient(160deg,#0d2e14,#1a5c2a);
+  border:2px solid rgba(255,255,255,0.15); border-radius:20px;
+  padding:36px 40px; text-align:center; min-width:300px; max-width:90vw;
+}
+#end-box h2 { font-family:'Bebas Neue',sans-serif; font-size:48px; color:var(--gold); margin-bottom:12px; }
+#end-scores { margin:16px 0; }
+.end-score-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.1); font-size:15px; color:rgba(255,255,255,0.8); }
+#btn-play-again {
+  width:100%; padding:14px; background:linear-gradient(135deg,#f0c040,#e08000);
+  color:#111; font-size:18px; font-weight:900; border:none; border-radius:12px;
+  cursor:pointer; font-family:'Heebo',sans-serif; margin-top:16px;
+}
+
+/* ═══ WORKING AREA ═══ */
+#working-area {
+  position:absolute; bottom:0; left:0; right:0; top:0;
+  background:rgba(0,0,0,0.7); z-index:30; display:none;
+  flex-direction:column; padding:12px;
+}
+#working-area.show { display:flex; }
+#working-tiles { display:flex; flex-wrap:wrap; gap:6px; flex:1; align-content:flex-start; padding:12px; background:rgba(255,255,255,0.05); border-radius:12px; min-height:100px; }
+#working-actions { display:flex; gap:8px; margin-top:10px; }
+
+/* ═══ POOL COUNT ═══ */
+#pool-count { font-size:13px; color:rgba(255,255,255,0.6); }
+#pool-count span { color:var(--gold); font-weight:700; }
+
+/* Quest/mobile friendly */
+@media (max-width: 600px) {
+  .tile { width:38px; height:50px; font-size:17px; }
+  .tile.in-hand { width:34px; height:46px; font-size:16px; }
+  #menu-box { padding:24px 20px; }
+  #menu-box h1 { font-size:42px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══ MENU SCREEN ══ -->
+<div id="screen-menu">
+  <div id="menu-box">
+    <h1>RUMMIKUB</h1>
+    <div class="subtitle" id="sub">משחק האבנות הקלאסי</div>
+
+    <div class="menu-section">
+      <label id="lbl-lang">🌐 שפה / Language</label>
+      <div class="btn-group">
+        <button class="opt-btn active" onclick="setLang('he',this)">עברית</button>
+        <button class="opt-btn" onclick="setLang('en',this)">English</button>
+      </div>
+    </div>
+
+    <div class="menu-section">
+      <label id="lbl-players">👥 מספר שחקנים</label>
+      <div class="btn-group">
+        <button class="opt-btn" onclick="setOpt('players',2,this)">2</button>
+        <button class="opt-btn active" onclick="setOpt('players',3,this)">3</button>
+        <button class="opt-btn" onclick="setOpt('players',4,this)">4</button>
+      </div>
+    </div>
+
+    <div class="menu-section">
+      <label id="lbl-diff">🧠 רמת קושי</label>
+      <div class="btn-group">
+        <button class="opt-btn" onclick="setOpt('diff','easy',this)">קל</button>
+        <button class="opt-btn active" onclick="setOpt('diff','medium',this)">בינוני</button>
+        <button class="opt-btn" onclick="setOpt('diff','hard',this)">קשה</button>
+      </div>
+    </div>
+
+    <div class="menu-section">
+      <label id="lbl-time">⏱️ זמן לתור</label>
+      <div class="btn-group">
+        <button class="opt-btn active" onclick="setOpt('time',90,this)">90 שנ'</button>
+        <button class="opt-btn" onclick="setOpt('time',120,this)">120 שנ'</button>
+      </div>
+    </div>
+
+    <div class="menu-section">
+      <label id="lbl-name">✏️ שמך</label>
+      <input id="player-name" type="text" value="שחקן 1"
+        style="width:100%;padding:10px 14px;border-radius:10px;border:2px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.08);color:white;font-size:16px;font-family:'Heebo',sans-serif;text-align:center;">
+    </div>
+
+    <button id="btn-start" onclick="startGame()">🎮 התחל משחק</button>
+  </div>
+</div>
+
+<!-- ══ GAME SCREEN ══ -->
+<div id="screen-game">
+  <!-- Top bar -->
+  <div id="game-top">
+    <div id="game-status"></div>
+    <div id="timer-box">
+      <span id="pool-count">🀱 <span id="pool-num">106</span></span>
+      <div id="timer">90</div>
+    </div>
+  </div>
+
+  <!-- Opponents -->
+  <div id="opponents-area"></div>
+
+  <!-- Board -->
+  <div id="game-body">
+    <div id="board-wrap">
+      <div id="board">
+        <div id="board-inner"></div>
+        <div id="msg-box"></div>
+      </div>
+    </div>
+
+    <!-- Working area overlay -->
+    <div id="working-area">
+      <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-bottom:8px;" id="lbl-working">בניית קבוצה חדשה — בחרי אבנות:</div>
+      <div id="working-tiles"></div>
+      <div id="working-actions">
+        <button class="action-btn" id="btn-confirm-set" style="background:linear-gradient(135deg,#22aa44,#118833);color:white;" onclick="confirmNewSet()">✓ אשר קבוצה</button>
+        <button class="action-btn" id="btn-cancel-set" style="background:rgba(255,80,50,0.3);color:#ffaa88;" onclick="cancelNewSet()">✕ ביטול</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Player hand -->
+  <div id="hand-area">
+    <div id="hand-top">
+      <div id="hand-label">האבנות שלך</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.5);" id="lbl-sel-count"></div>
+    </div>
+    <div id="hand-tiles"></div>
+  </div>
+
+  <!-- Actions -->
+  <div id="action-bar">
+    <button class="action-btn" id="btn-new-set" onclick="startNewSet()">+ קבוצה חדשה</button>
+    <button class="action-btn" id="btn-add-to-set" onclick="addToExistingSet()" style="background:rgba(100,200,255,0.15);color:#88ddff;border:1px solid rgba(100,200,255,0.3);">+ הוסף לקבוצה</button>
+    <button class="action-btn" id="btn-sort" onclick="sortHand()">⇅ מיין</button>
+    <button class="action-btn" id="btn-undo" onclick="undoMove()">↩ בטל</button>
+    <button class="action-btn" id="btn-draw" onclick="drawTile()">🀱 שלוף</button>
+    <button class="action-btn" id="btn-place" onclick="endTurn()">✓ סיים תור</button>
+  </div>
+</div>
+
+<!-- ══ END SCREEN ══ -->
+<div id="screen-end">
+  <div id="end-box">
+    <h2 id="end-title">🏆 ניצחת!</h2>
+    <div id="end-scores"></div>
+    <button id="btn-play-again" onclick="location.reload()">🔄 משחק חדש</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// LANGUAGE
+// ══════════════════════════════════════════
+const T = {
+  he: {
+    sub:'משחק האבנות הקלאסי', players:'👥 מספר שחקנים', diff:'🧠 רמת קושי',
+    time:'⏱️ זמן לתור', name:'✏️ שמך', start:'🎮 התחל משחק',
+    easy:'קל', medium:'בינוני', hard:'קשה',
+    yourTurn:'התור שלך!', compTurn:'תור ', pool:'במאגר',
+    draw:'🀱 שלוף', endTurn:'✓ סיים תור', newSet:'+ קבוצה חדשה',
+    addSet:'+ הוסף לקבוצה', sort:'⇅ מיין', undo:'↩ בטל',
+    hand:'האבנות שלך', working:'בניית קבוצה חדשה — בחרי אבנות:',
+    confirmSet:'✓ אשר קבוצה', cancelSet:'✕ ביטול',
+    invalidSet:'קבוצה לא חוקית!', needInitial:'צריך לפחות 30 נקודות ביציאה ראשונה!',
+    wins:'🏆 ניצח!', again:'🔄 משחק חדש', timeout:'הזמן נגמר!',
+    drew:'שלף אבן', placed:'הניח קבוצה', turnOf:'תור של',
+    selectFirst:'בחרי אבנות קודם', mustPlace:'חייב להניח לפחות אבן אחת',
+    selCount:'נבחרו', lang:'🌐 שפה / Language'
+  },
+  en: {
+    sub:'The Classic Tile Game', players:'👥 Number of Players', diff:'🧠 Difficulty',
+    time:'⏱️ Time per Turn', name:'✏️ Your Name', start:'🎮 Start Game',
+    easy:'Easy', medium:'Medium', hard:'Hard',
+    yourTurn:'Your Turn!', compTurn:'Turn: ', pool:'in pool',
+    draw:'🀱 Draw', endTurn:'✓ End Turn', newSet:'+ New Set',
+    addSet:'+ Add to Set', sort:'⇅ Sort', undo:'↩ Undo',
+    hand:'Your Tiles', working:'Building new set — select tiles:',
+    confirmSet:'✓ Confirm Set', cancelSet:'✕ Cancel',
+    invalidSet:'Invalid set!', needInitial:'Need at least 30 points for first move!',
+    wins:'🏆 Wins!', again:'🔄 Play Again', timeout:'Time\'s up!',
+    drew:'drew a tile', placed:'placed a set', turnOf:'Turn of',
+    selectFirst:'Select tiles first', mustPlace:'Must place at least one tile',
+    selCount:'Selected', lang:'🌐 Language / שפה'
+  }
+};
+
+let lang = 'he';
+function t(k) { return T[lang][k] || k; }
+
+function setLang(l, btn) {
+  lang = l;
+  document.querySelectorAll('[onclick*="setLang"]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.documentElement.lang = l;
+  document.body.style.direction = l==='he'?'rtl':'ltr';
+  updateMenuLabels();
+}
+
+function updateMenuLabels() {
+  document.getElementById('sub').textContent = t('sub');
+  document.getElementById('lbl-players').textContent = t('players');
+  document.getElementById('lbl-diff').textContent = t('diff');
+  document.getElementById('lbl-time').textContent = t('time');
+  document.getElementById('lbl-name').textContent = t('name');
+  document.getElementById('btn-start').textContent = t('start');
+}
+
+// ══════════════════════════════════════════
+// SETTINGS
+// ══════════════════════════════════════════
+const settings = { players:3, diff:'medium', time:90 };
+
+function setOpt(key, val, btn) {
+  settings[key] = val;
+  const group = btn.closest('.btn-group');
+  group.querySelectorAll('.opt-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ══════════════════════════════════════════
+// GAME STATE
+// ══════════════════════════════════════════
+const COLORS = ['red','blue','orange','black'];
+const COLOR_EMOJIS = {red:'🔴',blue:'🔵',orange:'🟠',black:'⚫'};
+
+const AI_CONFIGS = [
+  { name:'ARIA', avatar:'🤖', color:'#4488ff' },
+  { name:'MERLIN', avatar:'🧙', color:'#9944ff' },
+  { name:'FOX', avatar:'🦊', color:'#ff8800' },
+];
+
+let pool = [];
+let board = []; // array of sets, each set = array of tiles
+let players = [];
+let currentPlayer = 0;
+let timerInterval = null;
+let timeLeft = 90;
+let selectedTiles = []; // [{playerIdx, tileIdx}]
+let selectedSetIdx = -1;
+let workingTiles = []; // tiles being built into a set
+let boardSnapshot = null; // for undo
+let handSnapshot = null;
+let gameOver = false;
+
+function buildPool() {
+  pool = [];
+  let id = 0;
+  for (let copy = 0; copy < 2; copy++) {
+    for (const color of COLORS) {
+      for (let num = 1; num <= 13; num++) {
+        pool.push({ id: id++, color, num, isJoker: false });
+      }
+    }
+  }
+  // 2 jokers
+  pool.push({ id: id++, color: 'joker', num: 0, isJoker: true });
+  pool.push({ id: id++, color: 'joker', num: 0, isJoker: true });
+  // Shuffle
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+}
+
+function startGame() {
+  const name = document.getElementById('player-name').value.trim() || 'Player';
+  timeLeft = settings.time;
+
+  buildPool();
+  board = [];
+  players = [];
+  selectedTiles = [];
+  workingTiles = [];
+  gameOver = false;
+
+  // Human player
+  players.push({ name, avatar: '😊', isHuman: true, hand: [], hasPlacedInitial: false, score: 0 });
+
+  // AI players
+  for (let i = 0; i < settings.players - 1; i++) {
+    const ai = AI_CONFIGS[i];
+    players.push({ name: ai.name, avatar: ai.avatar, isHuman: false, hand: [], hasPlacedInitial: false, score: 0 });
+  }
+
+  // Deal 14 tiles each
+  for (const p of players) {
+    for (let i = 0; i < 14; i++) {
+      if (pool.length > 0) p.hand.push(pool.pop());
+    }
+  }
+
+  currentPlayer = 0;
+  document.getElementById('screen-menu').style.display = 'none';
+  document.getElementById('screen-game').style.display = 'flex';
+
+  renderAll();
+  startTimer();
+  showMsg(t('yourTurn'), 1200);
+}
+
+// ══════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════
+function renderAll() {
+  renderOpponents();
+  renderBoard();
+  renderHand();
+  renderStatus();
+  document.getElementById('pool-num').textContent = pool.length;
+  document.getElementById('timer').textContent = timeLeft;
+
+  // Update button labels
+  document.getElementById('btn-draw').textContent = t('draw');
+  document.getElementById('btn-place').textContent = t('endTurn');
+  document.getElementById('btn-new-set').textContent = t('newSet');
+  document.getElementById('btn-add-to-set').textContent = t('addSet');
+  document.getElementById('btn-sort').textContent = t('sort');
+  document.getElementById('btn-undo').textContent = t('undo');
+  document.getElementById('hand-label').textContent = t('hand');
+  document.getElementById('lbl-working').textContent = t('working');
+  document.getElementById('btn-confirm-set').textContent = t('confirmSet');
+  document.getElementById('btn-cancel-set').textContent = t('cancelSet');
+
+  const isHumanTurn = players[currentPlayer].isHuman;
+  document.getElementById('btn-draw').disabled = !isHumanTurn;
+  document.getElementById('btn-place').disabled = !isHumanTurn;
+  document.getElementById('btn-new-set').disabled = !isHumanTurn;
+  document.getElementById('btn-add-to-set').disabled = !isHumanTurn;
+  document.getElementById('btn-sort').disabled = !isHumanTurn;
+  document.getElementById('btn-undo').disabled = !isHumanTurn;
+
+  updateSelCount();
+}
+
+function renderOpponents() {
+  const area = document.getElementById('opponents-area');
+  area.innerHTML = '';
+  for (let i = 0; i < players.length; i++) {
+    if (players[i].isHuman) continue;
+    const p = players[i];
+    const div = document.createElement('div');
+    div.className = 'player-panel' + (i === currentPlayer ? ' active-turn' : '');
+    div.innerHTML = `
+      <div class="player-avatar">${p.avatar}</div>
+      <div class="player-name">${p.name}</div>
+      <div class="player-count">🀱 <span>${p.hand.length}</span></div>
+      ${p.hasPlacedInitial ? '<div style="font-size:10px;color:#88ff88">✓ יצא</div>' : ''}
+    `;
+    area.appendChild(div);
+  }
+}
+
+function renderBoard() {
+  const inner = document.getElementById('board-inner');
+  inner.innerHTML = '';
+
+  if (board.length === 0) {
+    const ph = document.createElement('div');
+    ph.style.cssText = 'color:rgba(255,255,255,0.2);font-size:14px;padding:20px;width:100%;text-align:center;';
+    ph.textContent = lang==='he' ? '— הלוח ריק —' : '— Board is empty —';
+    inner.appendChild(ph);
+    return;
+  }
+
+  board.forEach((set, si) => {
+    const setDiv = document.createElement('div');
+    setDiv.className = 'board-set' + (si === selectedSetIdx ? ' selected-set' : '');
+    setDiv.onclick = () => selectBoardSet(si);
+    set.forEach(tile => {
+      setDiv.appendChild(makeTileEl(tile, 'small'));
+    });
+    inner.appendChild(setDiv);
+  });
+}
+
+function renderHand() {
+  const container = document.getElementById('hand-tiles');
+  container.innerHTML = '';
+  const hand = players[currentPlayer].isHuman ? players[0].hand : [];
+
+  if (hand.length === 0) {
+    container.innerHTML = '<div style="color:rgba(255,255,255,0.3);font-size:13px;padding:10px;">— אין אבנות —</div>';
+    return;
+  }
+
+  hand.forEach((tile, idx) => {
+    const el = makeTileEl(tile, 'in-hand');
+    const isSel = selectedTiles.some(s => s.tileIdx === idx);
+    if (isSel) el.classList.add('selected');
+    el.onclick = () => toggleSelectTile(idx);
+    container.appendChild(el);
+  });
+}
+
+function makeTileEl(tile, size='') {
+  const el = document.createElement('div');
+  el.className = 'tile' + (size ? ' '+size : '');
+  if (tile.isJoker) {
+    el.classList.add('joker');
+    el.textContent = '★';
+  } else {
+    el.classList.add('color-'+tile.color);
+    el.textContent = tile.num;
+  }
+  el.title = tile.isJoker ? 'Joker' : `${tile.num} ${tile.color}`;
+  return el;
+}
+
+function renderStatus() {
+  const p = players[currentPlayer];
+  const statusEl = document.getElementById('game-status');
+  if (p.isHuman) {
+    statusEl.innerHTML = `<span style="color:var(--gold)">${p.avatar} ${t('yourTurn')}</span>`;
+  } else {
+    statusEl.innerHTML = `<span style="color:rgba(255,255,255,0.7)">${p.avatar} ${t('compTurn')}${p.name}</span>`;
+  }
+}
+
+// ══════════════════════════════════════════
+// TILE SELECTION
+// ══════════════════════════════════════════
+function toggleSelectTile(idx) {
+  if (!players[currentPlayer].isHuman) return;
+  const hand = players[0].hand;
+
+  const selIdx = selectedTiles.findIndex(s => s.tileIdx === idx);
+  if (selIdx >= 0) {
+    selectedTiles.splice(selIdx, 1);
+  } else {
+    selectedTiles.push({ tileIdx: idx });
+  }
+  renderHand();
+  updateSelCount();
+}
+
+function updateSelCount() {
+  const el = document.getElementById('lbl-sel-count');
+  if (selectedTiles.length > 0) {
+    el.textContent = `${t('selCount')}: ${selectedTiles.length}`;
+  } else {
+    el.textContent = '';
+  }
+}
+
+function selectBoardSet(si) {
+  if (!players[currentPlayer].isHuman) return;
+  selectedSetIdx = si === selectedSetIdx ? -1 : si;
+  renderBoard();
+}
+
+// ══════════════════════════════════════════
+// GAME ACTIONS
+// ══════════════════════════════════════════
+function startNewSet() {
+  if (selectedTiles.length < 2) { showMsg(t('selectFirst'), 1500); return; }
+  const hand = players[0].hand;
+  workingTiles = selectedTiles.map(s => hand[s.tileIdx]);
+
+  document.getElementById('working-area').classList.add('show');
+  renderWorkingArea();
+}
+
+function renderWorkingArea() {
+  const container = document.getElementById('working-tiles');
+  container.innerHTML = '';
+  workingTiles.forEach((tile, i) => {
+    const el = makeTileEl(tile, '');
+    el.onclick = () => { workingTiles.splice(i,1); renderWorkingArea(); };
+    container.appendChild(el);
+  });
+  // Add more from hand
+  const hand = players[0].hand;
+  hand.forEach((tile, idx) => {
+    if (workingTiles.includes(tile)) return;
+    const el = makeTileEl(tile, 'small');
+    el.style.opacity = '.5';
+    el.onclick = () => { workingTiles.push(tile); renderWorkingArea(); };
+    container.appendChild(el);
+  });
+}
+
+function confirmNewSet() {
+  if (workingTiles.length < 3) { showMsg(t('invalidSet'), 1500); return; }
+  if (!isValidSet(workingTiles)) { showMsg(t('invalidSet'), 1500); return; }
+
+  const pts = setPoints(workingTiles);
+  const human = players[0];
+  if (!human.hasPlacedInitial && board.length === 0) {
+    if (pts < 30) { showMsg(t('needInitial'), 2000); return; }
+  }
+
+  saveSnapshot();
+  // Remove from hand
+  workingTiles.forEach(t => {
+    const idx = human.hand.indexOf(t);
+    if (idx >= 0) human.hand.splice(idx,1);
+  });
+  board.push([...workingTiles]);
+  if (!human.hasPlacedInitial) human.hasPlacedInitial = true;
+
+  workingTiles = [];
+  selectedTiles = [];
+  cancelNewSet();
+  renderAll();
+  checkWin();
+}
+
+function cancelNewSet() {
+  workingTiles = [];
+  document.getElementById('working-area').classList.remove('show');
+  selectedTiles = [];
+  renderHand();
+}
+
+function addToExistingSet() {
+  if (selectedTiles.length === 0) { showMsg(t('selectFirst'), 1500); return; }
+  if (selectedSetIdx < 0) { showMsg(lang==='he'?'בחרי קבוצה מהלוח':'Select a set from board', 1500); return; }
+
+  const hand = players[0].hand;
+  const tilesToAdd = selectedTiles.map(s => hand[s.tileIdx]);
+  const targetSet = [...board[selectedSetIdx], ...tilesToAdd];
+
+  if (!isValidSet(targetSet)) { showMsg(t('invalidSet'), 1500); return; }
+
+  const human = players[0];
+  if (!human.hasPlacedInitial) {
+    const pts = setPoints(tilesToAdd);
+    if (pts < 30) { showMsg(t('needInitial'), 2000); return; }
+  }
+
+  saveSnapshot();
+  board[selectedSetIdx] = targetSet;
+  tilesToAdd.forEach(t => {
+    const idx = hand.indexOf(t);
+    if (idx >= 0) hand.splice(idx,1);
+  });
+  if (!human.hasPlacedInitial) human.hasPlacedInitial = true;
+
+  selectedTiles = [];
+  selectedSetIdx = -1;
+  renderAll();
+  checkWin();
+}
+
+function drawTile() {
+  if (!players[currentPlayer].isHuman) return;
+  if (pool.length === 0) { nextTurn(); return; }
+  saveSnapshot();
+  const tile = pool.pop();
+  players[0].hand.push(tile);
+  selectedTiles = [];
+  renderAll();
+  showMsg(lang==='he'?'שלפת אבן':'Drew a tile', 1000);
+  nextTurn();
+}
+
+function endTurn() {
+  if (!players[currentPlayer].isHuman) return;
+  nextTurn();
+}
+
+function sortHand() {
+  const hand = players[0].hand;
+  hand.sort((a,b) => {
+    if (a.isJoker) return 1;
+    if (b.isJoker) return -1;
+    if (a.color !== b.color) return COLORS.indexOf(a.color)-COLORS.indexOf(b.color);
+    return a.num - b.num;
+  });
+  selectedTiles = [];
+  renderHand();
+}
+
+function saveSnapshot() {
+  boardSnapshot = board.map(s=>[...s]);
+  handSnapshot = [...players[0].hand];
+}
+
+function undoMove() {
+  if (!boardSnapshot) return;
+  board = boardSnapshot.map(s=>[...s]);
+  players[0].hand = [...handSnapshot];
+  boardSnapshot = null; handSnapshot = null;
+  selectedTiles = [];
+  selectedSetIdx = -1;
+  renderAll();
+}
+
+// ══════════════════════════════════════════
+// VALIDATION
+// ══════════════════════════════════════════
+function isValidSet(tiles) {
+  if (!tiles || tiles.length < 3) return false;
+
+  const nonJokers = tiles.filter(t => !t.isJoker);
+  const jokerCount = tiles.length - nonJokers.length;
+
+  // Try as run (consecutive same color)
+  if (isValidRun(tiles)) return true;
+  // Try as group (same number different colors)
+  if (isValidGroup(tiles)) return true;
+
+  return false;
+}
+
+function isValidRun(tiles) {
+  const nonJokers = tiles.filter(t => !t.isJoker);
+  if (nonJokers.length === 0) return true;
+
+  const color = nonJokers[0].color;
+  if (!nonJokers.every(t => t.color === color)) return false;
+
+  // Place jokers flexibly
+  const nums = nonJokers.map(t=>t.num).sort((a,b)=>a-b);
+  const jokers = tiles.length - nonJokers.length;
+
+  // Check if we can fill gaps with jokers
+  let jokersLeft = jokers;
+  for (let i = 1; i < nums.length; i++) {
+    const gap = nums[i] - nums[i-1] - 1;
+    if (gap < 0) return false; // duplicate
+    if (gap > jokersLeft) return false;
+    jokersLeft -= gap;
+  }
+  return true;
+}
+
+function isValidGroup(tiles) {
+  const nonJokers = tiles.filter(t => !t.isJoker);
+  if (nonJokers.length === 0) return tiles.length >= 3;
+
+  const num = nonJokers[0].num;
+  if (!nonJokers.every(t => t.num === num)) return false;
+
+  const colors = nonJokers.map(t=>t.color);
+  const uniqueColors = new Set(colors);
+  if (uniqueColors.size !== colors.length) return false; // duplicate colors
+
+  if (tiles.length > 4) return false;
+  return true;
+}
+
+function setPoints(tiles) {
+  return tiles.reduce((sum, t) => {
+    if (t.isJoker) return sum + 30;
+    return sum + t.num;
+  }, 0);
+}
+
+// ══════════════════════════════════════════
+// TURN MANAGEMENT
+// ══════════════════════════════════════════
+function nextTurn() {
+  selectedTiles = [];
+  selectedSetIdx = -1;
+  cancelNewSet();
+  stopTimer();
+
+  do {
+    currentPlayer = (currentPlayer + 1) % players.length;
+  } while (false);
+
+  if (!gameOver) {
+    timeLeft = settings.time;
+    renderAll();
+    startTimer();
+
+    if (!players[currentPlayer].isHuman) {
+      setTimeout(() => aiTurn(), 1200);
+    } else {
+      showMsg(t('yourTurn'), 1200);
+    }
+  }
+}
+
+function checkWin() {
+  for (let i = 0; i < players.length; i++) {
+    if (players[i].hand.length === 0) {
+      endGame(i);
+      return;
+    }
+  }
+  if (pool.length === 0) {
+    // Find lowest count
+    let minCount = Infinity, winner = 0;
+    players.forEach((p,i) => { if(p.hand.length < minCount){ minCount=p.hand.length; winner=i; }});
+    endGame(winner);
+  }
+}
+
+function endGame(winnerIdx) {
+  gameOver = true;
+  stopTimer();
+
+  // Calculate scores
+  players.forEach((p,i) => {
+    p.score = p.hand.reduce((s,t) => s + (t.isJoker?30:t.num), 0);
+  });
+
+  const winner = players[winnerIdx];
+  document.getElementById('end-title').textContent = `${winner.avatar} ${winner.name} ${t('wins')}`;
+  document.getElementById('btn-play-again').textContent = t('again');
+
+  const scores = document.getElementById('end-scores');
+  scores.innerHTML = '';
+  players.forEach((p,i) => {
+    const row = document.createElement('div');
+    row.className = 'end-score-row';
+    row.innerHTML = `<span>${p.avatar} ${p.name}</span><span style="color:${i===winnerIdx?'#f0c040':'rgba(255,255,255,0.6)'}">${p.score} pts ${p.hand.length} tiles</span>`;
+    scores.appendChild(row);
+  });
+
+  document.getElementById('screen-end').style.display = 'flex';
+}
+
+// ══════════════════════════════════════════
+// AI LOGIC
+// ══════════════════════════════════════════
+function aiTurn() {
+  if (gameOver) return;
+  const p = players[currentPlayer];
+  const diff = settings.diff;
+
+  let moved = false;
+
+  // Try to place sets
+  const possibleSets = findPossibleSets(p.hand, diff);
+
+  if (possibleSets.length > 0) {
+    // Filter by initial placement rule
+    const validSets = possibleSets.filter(set => {
+      if (!p.hasPlacedInitial) {
+        return setPoints(set) >= 30;
+      }
+      return true;
+    });
+
+    if (validSets.length > 0) {
+      // Sort by points (best first on hard, random on easy)
+      if (diff === 'hard') {
+        validSets.sort((a,b) => setPoints(b)-setPoints(a));
+      } else if (diff === 'easy') {
+        validSets.sort(()=>Math.random()-.5);
+      }
+
+      const setToPlay = validSets[0];
+      setToPlay.forEach(tile => {
+        const idx = p.hand.indexOf(tile);
+        if (idx >= 0) p.hand.splice(idx,1);
+      });
+      board.push([...setToPlay]);
+      if (!p.hasPlacedInitial) p.hasPlacedInitial = true;
+      moved = true;
+
+      // On hard/medium, try more sets
+      if (diff !== 'easy') {
+        let more = true;
+        while (more && p.hand.length > 0) {
+          more = false;
+          const more_sets = findPossibleSets(p.hand, diff).filter(s => {
+            if (!p.hasPlacedInitial) return setPoints(s)>=30;
+            return true;
+          });
+          if (more_sets.length > 0) {
+            const s = more_sets[0];
+            s.forEach(tile => { const i=p.hand.indexOf(tile); if(i>=0)p.hand.splice(i,1); });
+            board.push([...s]);
+            more = true;
+          }
+        }
+      }
+    }
+  }
+
+  if (!moved) {
+    // Draw
+    if (pool.length > 0) {
+      p.hand.push(pool.pop());
+    }
+  }
+
+  renderAll();
+  checkWin();
+  if (!gameOver) nextTurn();
+}
+
+function findPossibleSets(hand, diff) {
+  const sets = [];
+
+  // Find runs
+  const byColor = {};
+  COLORS.forEach(c => { byColor[c] = hand.filter(t=>!t.isJoker&&t.color===c).sort((a,b)=>a.num-b.num); });
+  const jokers = hand.filter(t=>t.isJoker);
+
+  COLORS.forEach(color => {
+    const tiles = byColor[color];
+    // Find consecutive sequences of 3+
+    for (let i=0; i<tiles.length; i++) {
+      for (let j=i+2; j<tiles.length; j++) {
+        const sub = tiles.slice(i,j+1);
+        if (isValidRun(sub)) sets.push(sub);
+      }
+      // With joker
+      if (jokers.length > 0) {
+        for (let j=i+1; j<tiles.length; j++) {
+          const sub = [...tiles.slice(i,j+1), jokers[0]];
+          if (isValidRun(sub)) sets.push(sub);
+        }
+      }
+    }
+  });
+
+  // Find groups (same number, different colors)
+  for (let num=1; num<=13; num++) {
+    const same = hand.filter(t=>!t.isJoker&&t.num===num);
+    if (same.length >= 3) {
+      // Try all combos of 3-4
+      for (let i=0; i<same.length-2; i++) {
+        sets.push([same[i],same[i+1],same[i+2]]);
+        if (same.length > i+3) sets.push([same[i],same[i+1],same[i+2],same[i+3]]);
+      }
+    }
+    // With joker
+    if (same.length >= 2 && jokers.length > 0) {
+      sets.push([same[0],same[1],jokers[0]]);
+    }
+  }
+
+  // Remove duplicates
+  return sets.filter(s => isValidSet(s));
+}
+
+// ══════════════════════════════════════════
+// TIMER
+// ══════════════════════════════════════════
+function startTimer() {
+  stopTimer();
+  timeLeft = settings.time;
+  const el = document.getElementById('timer');
+  el.classList.remove('urgent');
+
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    el.textContent = timeLeft;
+    if (timeLeft <= 10) el.classList.add('urgent');
+    if (timeLeft <= 0) {
+      stopTimer();
+      showMsg(t('timeout'), 1500);
+      setTimeout(() => {
+        if (players[currentPlayer].isHuman && pool.length > 0) {
+          players[0].hand.push(pool.pop());
+        }
+        renderAll();
+        if (!gameOver) nextTurn();
+      }, 1600);
+    }
+  }, 1000);
+}
+
+function stopTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+
+// ══════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════
+function showMsg(text, duration) {
+  const el = document.getElementById('msg-box');
+  el.textContent = text;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, duration || 2000);
+}
+
+// Init menu labels
+updateMenuLabels();
+</script>
+</body>
+</html>
